@@ -6,6 +6,10 @@ const cors = require('cors');
 // --- CRITICAL FIX HERE: Correct MailerSend v2 imports ---
 const { MailerSend, Email, Recipient, Sender } = require('mailersend'); 
 
+// --- ADDED LOG FOR TESTING SERVER.JS DEPLOYMENT ---
+console.log('[SERVER_TEST] MailerSend v2 import line CONFIRMED!'); 
+// --- END ADDED LOG ---
+
 console.log('[SERVER_START] Starting E-Waste App Email Service...');
 
 const app = express();
@@ -30,6 +34,9 @@ console.log('[SERVER_START] Middleware (bodyParser, cors) configured.');
 // Load environment variables
 const MAILERSEND_API_KEY = process.env.MAILERSEND_API_KEY;
 const SENDER_EMAIL = process.env.SENDER_EMAIL;
+// You can set APP_PRIMARY_COLOR in your Render environment variables or .env for customization
+const APP_PRIMARY_COLOR = process.env.APP_PRIMARY_COLOR || '#4CAF50'; 
+
 
 // Validate environment variables on startup
 if (!MAILERSEND_API_KEY) {
@@ -56,7 +63,7 @@ app.post('/send-confirmation-email', async (req, res) => {
     console.log('[API_HIT] Incoming Request Body:', req.body); // Log the full incoming request body
 
     // Destructure required fields from the request body, including new purchase details
-    const { toEmail, toName, subject, purchaseDetails, totalPrice } = req.body; // Removed htmlContent, textContent from here
+    const { toEmail, toName, subject, purchaseDetails, totalPrice } = req.body; 
 
     // Log the extracted fields for debugging
     console.log(`[API_HIT] Extracted Recipient Email: ${toEmail}`);
@@ -109,8 +116,8 @@ app.post('/send-confirmation-email', async (req, res) => {
                 </tbody>
                 <tfoot>
                     <tr>
-                        <td colspan="3" style="padding: 10px; border: 1px solid #ddd; text-align: right; font-weight: bold; background-color:#f2f2f2;">Total Payable:</td>
-                        <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-weight: bold; background-color:#f2f2f2;">₹${totalPrice.toFixed(2)}</td>
+                        <td colspan="3" style="padding: 10px; border: 1px solid #ddd; text-align: right; font-weight: bold; background-color:#f2f2f2;">Subtotal:</td>
+                        <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-weight: bold; background-color:#f2f2f2;">₹${(purchaseDetails.reduce((acc, item) => acc + (item.price * item.quantity), 0)).toFixed(2)}</td>
                     </tr>
                 </tfoot>
             </table>
@@ -123,11 +130,17 @@ app.post('/send-confirmation-email', async (req, res) => {
     // Construct the full HTML email body
     const emailHtmlBody = `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-            <h1 style="color: ${process.env.APP_PRIMARY_COLOR || '#4CAF50'}; text-align: center;">E-Waste App - Order Confirmation</h1>
+            <h1 style="color: ${APP_PRIMARY_COLOR}; text-align: center;">E-Waste App - Order Confirmation</h1>
             <p>Dear ${toName},</p>
-            <p>Thank you for your recent recent purchase with E-Waste App! Your order has been successfully placed and confirmed.</p>
-            <p style="font-size: 1.1em; font-weight: bold;">Order Total: <span style="color: ${process.env.APP_PRIMARY_COLOR || '#4CAF50'};">₹${totalPrice.toFixed(2)}</span></p>
+            <p>Thank you for your recent purchase with E-Waste App! Your order has been successfully placed and confirmed.</p>
+            
+            <div style="background-color: #e6ffe6; border: 1px solid #a6f2a6; border-radius: 5px; padding: 15px; margin: 20px 0; text-align: center;">
+                <p style="font-size: 1.2em; font-weight: bold; margin-bottom: 5px; color: #333;">Total Amount Paid:</p>
+                <p style="font-size: 1.8em; font-weight: bold; color: ${APP_PRIMARY_COLOR}; margin-top: 0;">₹${totalPrice.toFixed(2)}</p>
+            </div>
+
             ${itemsHtml}
+            
             <p>We appreciate your business and look forward to serving you again.</p>
             <p>Best regards,</p>
             <p><strong>The E-Waste App Team</strong></p>
@@ -142,7 +155,7 @@ app.post('/send-confirmation-email', async (req, res) => {
 
         Thank you for your recent purchase with E-Waste App! Your order has been successfully placed and confirmed.
 
-        Order Total: ₹${totalPrice.toFixed(2)}
+        Total Amount Paid: ₹${totalPrice.toFixed(2)}
 
         Purchase Details:
         ${itemsText}
@@ -166,12 +179,12 @@ app.post('/send-confirmation-email', async (req, res) => {
         .setTo(recipients)
         .setReplyTo(sender)
         .setSubject(subject)
-        .setHtml(emailHtmlBody)   // Use the generated HTML content
-        .setText(emailTextBody);   // Use the generated Plain Text content
+        .setHtml(emailHtmlBody)    // Use the generated HTML content
+        .setText(emailTextBody);    // Use the generated Plain Text content
 
     console.log('[API_HIT] Email parameters prepared. Attempting to send via MailerSend...');
-    console.log(`  To: ${toEmail} (${toName})`);
-    console.log(`  Subject: ${subject}`);
+    console.log(`   To: ${toEmail} (${toName})`);
+    console.log(`   Subject: ${subject}`);
 
     try {
         const response = await mailerSend.email.send(emailParams); // Use the MailerSend instance method
@@ -180,11 +193,12 @@ app.post('/send-confirmation-email', async (req, res) => {
 
         console.log('[API_HIT] Email successfully queued to MailerSend. Responding to Convex action.');
         res.status(200).json({ message: 'Email successfully queued.', mailerSendResponse: response.body });
-    } catch (error) { // No ': any' here for JavaScript compatibility
+    } catch (error) { 
         console.error('[API_HIT] Error sending email via MailerSend:', error);
         let errorMessage = 'Network or internal server error.';
         let errorDetails = error.message;
 
+        // Check if error has a 'response' property (common for API errors)
         if (error.response && error.response.body) {
             // MailerSend specific API error details
             errorMessage = error.response.body.message || errorMessage;
