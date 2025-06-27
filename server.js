@@ -3,7 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-// Correct MailerSend v2 imports
+// --- CRITICAL FIX HERE: Correct MailerSend v2 imports ---
 const { MailerSend, Email, Recipient, Sender } = require('mailersend'); 
 
 console.log('[SERVER_START] Starting E-Waste App Email Service...');
@@ -56,7 +56,7 @@ app.post('/send-confirmation-email', async (req, res) => {
     console.log('[API_HIT] Incoming Request Body:', req.body); // Log the full incoming request body
 
     // Destructure required fields from the request body, including new purchase details
-    const { toEmail, toName, subject, purchaseDetails, totalPrice } = req.body;
+    const { toEmail, toName, subject, purchaseDetails, totalPrice } = req.body; // Removed htmlContent, textContent from here
 
     // Log the extracted fields for debugging
     console.log(`[API_HIT] Extracted Recipient Email: ${toEmail}`);
@@ -121,12 +121,11 @@ app.post('/send-confirmation-email', async (req, res) => {
     }
 
     // Construct the full HTML email body
-    // You can customize the styling further here using COLORS from your theme if passed or hardcoded
     const emailHtmlBody = `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
             <h1 style="color: ${process.env.APP_PRIMARY_COLOR || '#4CAF50'}; text-align: center;">E-Waste App - Order Confirmation</h1>
             <p>Dear ${toName},</p>
-            <p>Thank you for your recent purchase with E-Waste App! Your order has been successfully placed and confirmed.</p>
+            <p>Thank you for your recent recent purchase with E-Waste App! Your order has been successfully placed and confirmed.</p>
             <p style="font-size: 1.1em; font-weight: bold;">Order Total: <span style="color: ${process.env.APP_PRIMARY_COLOR || '#4CAF50'};">₹${totalPrice.toFixed(2)}</span></p>
             ${itemsHtml}
             <p>We appreciate your business and look forward to serving you again.</p>
@@ -162,7 +161,7 @@ app.post('/send-confirmation-email', async (req, res) => {
     const sender = new Sender(SENDER_EMAIL, "E-Waste App Notifications"); // Use configured sender email
     const recipients = [new Recipient(toEmail, toName)]; // Ensure toName is always used for Recipient
 
-    const emailParams = new Email() // Use new MailerSend v2 Email class
+    const emailParams = new Email() // Use new MailerSend v2 Email class (from the fixed import)
         .setFrom(sender)
         .setTo(recipients)
         .setReplyTo(sender)
