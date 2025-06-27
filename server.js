@@ -3,9 +3,8 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-// MailerSend v2 uses MailerSend and Email classes directly,
-// EmailParams, Sender, Recipient are often part of Email or separate new instances
-const { MailerSend, Email, Recipient, Sender } = require('mailersend'); // Ensure correct imports for MailerSend v2
+// Correct MailerSend v2 imports
+const { MailerSend, Email, Recipient, Sender } = require('mailersend'); 
 
 console.log('[SERVER_START] Starting E-Waste App Email Service...');
 
@@ -72,7 +71,7 @@ app.post('/send-confirmation-email', async (req, res) => {
         return res.status(400).json({ error: 'Missing or invalid required email fields or purchase details.', details: req.body });
     }
     if (purchaseDetails.length === 0) {
-        console.warn('[API_HIT] Warning: Purchase details array is empty. Email will be sent without item breakdown.');
+        console.warn('[API_HIT] Warning: Purchase details array is empty. Email will be sent without item breakdown, but total will be included.');
     }
     // --- END Validation ---
 
@@ -122,18 +121,19 @@ app.post('/send-confirmation-email', async (req, res) => {
     }
 
     // Construct the full HTML email body
+    // You can customize the styling further here using COLORS from your theme if passed or hardcoded
     const emailHtmlBody = `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-            <h1 style="color: ${process.env.APP_PRIMARY_COLOR || '#4CAF50'};">E-Waste App - Order Confirmation</h1>
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+            <h1 style="color: ${process.env.APP_PRIMARY_COLOR || '#4CAF50'}; text-align: center;">E-Waste App - Order Confirmation</h1>
             <p>Dear ${toName},</p>
             <p>Thank you for your recent purchase with E-Waste App! Your order has been successfully placed and confirmed.</p>
-            <p><strong>Order Total: ₹${totalPrice.toFixed(2)}</strong></p>
+            <p style="font-size: 1.1em; font-weight: bold;">Order Total: <span style="color: ${process.env.APP_PRIMARY_COLOR || '#4CAF50'};">₹${totalPrice.toFixed(2)}</span></p>
             ${itemsHtml}
             <p>We appreciate your business and look forward to serving you again.</p>
             <p>Best regards,</p>
             <p><strong>The E-Waste App Team</strong></p>
             <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-            <p style="font-size: 0.8em; color: #777;">This is an automated email, please do not reply.</p>
+            <p style="font-size: 0.8em; color: #777; text-align: center;">This is an automated email, please do not reply.</p>
         </div>
     `;
 
@@ -177,11 +177,11 @@ app.post('/send-confirmation-email', async (req, res) => {
     try {
         const response = await mailerSend.email.send(emailParams); // Use the MailerSend instance method
         console.log('[API_HIT] MailerSend API call successful. Response:', response.statusCode); // Log status code
-        // console.log('[API_HIT] MailerSend API Response Data:', response.body); // Log full response body if needed
+        // console.log('[API_HIT] MailerSend API Response Data:', response.body); // Uncomment to log full response body if needed
 
         console.log('[API_HIT] Email successfully queued to MailerSend. Responding to Convex action.');
         res.status(200).json({ message: 'Email successfully queued.', mailerSendResponse: response.body });
-    } catch (error) { // Use 'any' for error type for broader compatibility
+    } catch (error) { // No ': any' here for JavaScript compatibility
         console.error('[API_HIT] Error sending email via MailerSend:', error);
         let errorMessage = 'Network or internal server error.';
         let errorDetails = error.message;
