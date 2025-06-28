@@ -3,13 +3,14 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+
 // --- CRITICAL FIX HERE: Correct MailerSend v2 imports ---
-// IMPORTANT: Ensure this line says 'Email' and NOT 'EmailParams'
+// IMPORTANT: This line MUST use 'Email' and NOT 'EmailParams'
 const { MailerSend, Email, Recipient, Sender } = require('mailersend'); 
 
-// --- ADDED LOG FOR TESTING SERVER.JS DEPLOYMENT ---
-console.log('[SERVER_TEST] MailerSend v2 import line CONFIRMED! - FinalTry'); 
-// --- END ADDED LOG ---
+// --- NEW UNIQUE LOG FOR VERIFICATION ---
+console.log('[SERVER_VERSION_CHECK] Running server.js v2025.06.28.1 - FINAL FIX ATTEMPT.'); 
+// --- END UNIQUE LOG ---
 
 console.log('[SERVER_START] Starting E-Waste App Email Service...');
 
@@ -176,7 +177,8 @@ app.post('/send-confirmation-email', async (req, res) => {
     const sender = new Sender(SENDER_EMAIL, "E-Waste App Notifications"); // Use configured sender email
     const recipients = [new Recipient(toEmail, toName)]; // Ensure toName is always used for Recipient
 
-    const emailParams = new Email() // Use new MailerSend v2 Email class (from the fixed import)
+    // CRITICAL: This MUST be 'new Email()' and NOT 'new EmailParams()'
+    const emailParams = new Email() 
         .setFrom(sender)
         .setTo(recipients)
         .setReplyTo(sender)
