@@ -3,52 +3,41 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-// --- CRITICAL FIX HERE: Correct MailerSend v2 imports ---
-const { MailerSend, Email, Recipient, Sender } = require('mailersend'); 
+const { MailerSend, EmailParams, Sender, Recipient } = require('mailersend');
 
-// --- ADDED LOG FOR TESTING SERVER.JS DEPLOYMENT ---
-console.log('[SERVER_TEST] MailerSend v2 import line CONFIRMED!'); 
-// --- END ADDED LOG ---
-
-console.log('[SERVER_START] Starting E-Waste App Email Service...');
+console.log('[SERVER_START] Starting E-Waste App Email Service...'); // New log
 
 const app = express();
-const port = 3000; // This port might be overridden by Render's PORT environment variable
+const port = 3000;
 
 // Middleware
-app.use(bodyParser.json()); // Essential for parsing JSON request bodies
+app.use(bodyParser.json());
 app.use(cors({
     origin: [
-        'http://localhost:3000', // For local testing if your frontend hits this directly
-        'http://localhost:5173', // Common Expo dev server port
-        /\.convex.cloud$/,       // Allows all Convex deployments (cloud-based actions)
-        /^exp:\/\//,             // Allows Expo Go development builds
-        /^https?:\/\/(.*)\.expo.dev$/, // Allows Expo Cloud builds/previews
-        // IMPORTANT: If you deploy your Expo frontend to a specific domain (e.g., Vercel, Netlify), add its public URL here
+        'http://localhost:3000',
+        'http://localhost:5173',
+        /\.convex.cloud$/,
+        /^exp:\/\//,
+        /^https?:\/\/(.*)\.expo.dev$/,
     ],
-    methods: ['GET', 'POST'], // Allow GET and POST requests
-    allowedHeaders: ['Content-Type', 'Authorization'], // Allow these headers
+    methods: ['GET', 'POST'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-console.log('[SERVER_START] Middleware (bodyParser, cors) configured.');
+console.log('[SERVER_START] Middleware (bodyParser, cors) configured.'); // New log
 
 // Load environment variables
 const MAILERSEND_API_KEY = process.env.MAILERSEND_API_KEY;
 const SENDER_EMAIL = process.env.SENDER_EMAIL;
-// You can set APP_PRIMARY_COLOR in your Render environment variables or .env for customization
-const APP_PRIMARY_COLOR = process.env.APP_PRIMARY_COLOR || '#4CAF50'; 
 
-
-// Validate environment variables on startup
 if (!MAILERSEND_API_KEY) {
     console.error("ERROR: MAILERSEND_API_KEY is not set in environment variables!");
-    process.exit(1); // Exit if critical env var is missing
+    process.exit(1);
 }
 if (!SENDER_EMAIL) {
-    console.error("ERROR: SENDER_EMAIL is not set in environment variables! Please set it to your MailerSend verified sender (e.g., admin@yourtrialdomain.mlsender.net).");
+    console.error("ERROR: SENDER_EMAIL is not set in environment variables! Please set it to your MailerSend verified sender.");
     process.exit(1);
 }
 
-// Initialize MailerSend client
 const mailerSend = new MailerSend({
     apiKey: MAILERSEND_API_KEY,
 });
@@ -56,154 +45,55 @@ const mailerSend = new MailerSend({
 console.log(`[SERVER_START] MailerSend initialized with API Key (masked): ${MAILERSEND_API_KEY ? MAILERSEND_API_KEY.substring(0, 5) + '...' : 'N/A'}`);
 console.log(`[SERVER_START] Default SENDER_EMAIL configured: ${SENDER_EMAIL}`);
 
-// --- CONFIRMATION EMAIL ROUTE ---
-console.log('[SERVER_START] Attempting to define POST /send-confirmation-email route...');
+// --- THIS IS THE ROUTE DEFINITION ---
+console.log('[SERVER_START] Attempting to define POST /send-confirmation-email route...'); // New log
 app.post('/send-confirmation-email', async (req, res) => {
-    console.log('[API_HIT] Backend received POST request for /send-confirmation-email.');
-    console.log('[API_HIT] Incoming Request Body:', req.body); // Log the full incoming request body
+    console.log('[API_HIT] Backend received POST request for /send-confirmation-email.'); // New log - This should show if the route is hit!
+    console.log('[API_HIT] Incoming Request Body:', req.body);
 
-    // Destructure required fields from the request body, including new purchase details
-    const { toEmail, toName, subject, purchaseDetails, totalPrice } = req.body; 
+    const { toEmail, toName, subject, htmlContent, textContent } = req.body;
 
-    // Log the extracted fields for debugging
-    console.log(`[API_HIT] Extracted Recipient Email: ${toEmail}`);
-    console.log(`[API_HIT] Extracted Recipient Name: ${toName}`);
-    console.log(`[API_HIT] Extracted Subject: ${subject}`);
-    console.log(`[API_HIT] Extracted Purchase Details (count): ${purchaseDetails ? purchaseDetails.length : 0}`);
-    console.log(`[API_HIT] Extracted Total Price: ${totalPrice}`);
+    console.log(`[API_HIT] Recipient Email: ${toEmail}`);
+    console.log(`[API_HIT] Recipient Name: ${toName}`);
+    console.log(`[API_HIT] Subject: ${subject}`);
 
-    // --- Validation (UPDATED to include purchaseDetails and totalPrice) ---
-    if (!toEmail || !toName || !subject || !Array.isArray(purchaseDetails) || typeof totalPrice !== 'number') {
-        console.error('[API_HIT] Validation Error: Missing or invalid required fields (toEmail, toName, subject, purchaseDetails (array), totalPrice (number)).');
-        return res.status(400).json({ error: 'Missing or invalid required email fields or purchase details.', details: req.body });
-    }
-    if (purchaseDetails.length === 0) {
-        console.warn('[API_HIT] Warning: Purchase details array is empty. Email will be sent without item breakdown, but total will be included.');
-    }
-    // --- END Validation ---
-
-    // --- Dynamically generate HTML and Text content for the email ---
-    let itemsHtml = '';
-    let itemsText = '';
-
-    if (purchaseDetails && purchaseDetails.length > 0) {
-        itemsHtml += `
-            <h2 style="color:#333;">Purchase Details:</h2>
-            <table style="width:100%; border-collapse: collapse; margin-bottom: 20px;">
-                <thead>
-                    <tr style="background-color:#f8f8f8;">
-                        <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Product</th>
-                        <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Qty</th>
-                        <th style="padding: 10px; border: 1px solid #ddd; text-align: right;">Price</th>
-                        <th style="padding: 10px; border: 1px solid #ddd; text-align: right;">Subtotal</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-        purchaseDetails.forEach(item => {
-            const itemSubtotal = item.price * item.quantity;
-            itemsHtml += `
-                <tr>
-                    <td style="padding: 10px; border: 1px solid #ddd;">${item.name}</td>
-                    <td style="padding: 10px; border: 1px solid #ddd;">${item.quantity}</td>
-                    <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">₹${item.price.toFixed(2)}</td>
-                    <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">₹${itemSubtotal.toFixed(2)}</td>
-                </tr>
-            `;
-            itemsText += `- ${item.name} (x${item.quantity}) @ ₹${item.price.toFixed(2)} = ₹${itemSubtotal.toFixed(2)}\n`;
-        });
-        itemsHtml += `
-                </tbody>
-                <tfoot>
-                    <tr>
-                        <td colspan="3" style="padding: 10px; border: 1px solid #ddd; text-align: right; font-weight: bold; background-color:#f2f2f2;">Subtotal:</td>
-                        <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-weight: bold; background-color:#f2f2f2;">₹${(purchaseDetails.reduce((acc, item) => acc + (item.price * item.quantity), 0)).toFixed(2)}</td>
-                    </tr>
-                </tfoot>
-            </table>
-        `;
-    } else {
-        itemsHtml = `<p>No specific item details were provided for this order.</p>`;
-        itemsText = `No specific item details were provided for this order.\n`;
+    if (!toEmail || !subject || (!htmlContent && !textContent)) {
+        console.error('[API_HIT] Validation Error: Missing required fields (toEmail, subject, htmlContent/textContent).');
+        return res.status(400).json({ error: 'Missing required email fields.', details: req.body });
     }
 
-    // Construct the full HTML email body
-    const emailHtmlBody = `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-            <h1 style="color: ${APP_PRIMARY_COLOR}; text-align: center;">E-Waste App - Order Confirmation</h1>
-            <p>Dear ${toName},</p>
-            <p>Thank you for your recent purchase with E-Waste App! Your order has been successfully placed and confirmed.</p>
-            
-            <div style="background-color: #e6ffe6; border: 1px solid #a6f2a6; border-radius: 5px; padding: 15px; margin: 20px 0; text-align: center;">
-                <p style="font-size: 1.2em; font-weight: bold; margin-bottom: 5px; color: #333;">Total Amount Paid:</p>
-                <p style="font-size: 1.8em; font-weight: bold; color: ${APP_PRIMARY_COLOR}; margin-top: 0;">₹${totalPrice.toFixed(2)}</p>
-            </div>
+    const sender = new Sender(SENDER_EMAIL, "E-Waste App Notifications");
+    const recipients = [new Recipient(toEmail, toName || toEmail)];
 
-            ${itemsHtml}
-            
-            <p>We appreciate your business and look forward to serving you again.</p>
-            <p>Best regards,</p>
-            <p><strong>The E-Waste App Team</strong></p>
-            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-            <p style="font-size: 0.8em; color: #777; text-align: center;">This is an automated email, please do not reply.</p>
-        </div>
-    `;
-
-    // Construct the full Plain Text email body
-    const emailTextBody = `
-        Dear ${toName},
-
-        Thank you for your recent purchase with E-Waste App! Your order has been successfully placed and confirmed.
-
-        Total Amount Paid: ₹${totalPrice.toFixed(2)}
-
-        Purchase Details:
-        ${itemsText}
-
-        We appreciate your business and look forward to serving you again.
-
-        Best regards,
-        The E-Waste App Team
-
-        ---
-        This is an automated email, please do not reply.
-    `;
-    // --- END Dynamic Content Generation ---
-
-
-    const sender = new Sender(SENDER_EMAIL, "E-Waste App Notifications"); // Use configured sender email
-    const recipients = [new Recipient(toEmail, toName)]; // Ensure toName is always used for Recipient
-
-    const emailParams = new Email() // Use new MailerSend v2 Email class (from the fixed import)
+    const emailParams = new EmailParams()
         .setFrom(sender)
         .setTo(recipients)
         .setReplyTo(sender)
         .setSubject(subject)
-        .setHtml(emailHtmlBody)    // Use the generated HTML content
-        .setText(emailTextBody);    // Use the generated Plain Text content
+        .setHtml(htmlContent)
+        .setText(textContent);
 
-    console.log('[API_HIT] Email parameters prepared. Attempting to send via MailerSend...');
-    console.log(`   To: ${toEmail} (${toName})`);
-    console.log(`   Subject: ${subject}`);
+    console.log('[API_HIT] Final emailParams object prepared (showing a few props):');
+    console.log(`  From: ${emailParams.from.email} (${emailParams.from.name})`);
+    console.log(`  To: ${emailParams.to.map(r => `${r.email} (${r.name})`).join(', ')}`);
+    console.log(`  Subject: ${emailParams.subject}`);
 
     try {
-        const response = await mailerSend.email.send(emailParams); // Use the MailerSend instance method
-        console.log('[API_HIT] MailerSend API call successful. Response:', response.statusCode); // Log status code
-        // console.log('[API_HIT] MailerSend API Response Data:', response.body); // Uncomment to log full response body if needed
+        console.log('[API_HIT] Attempting to send email via MailerSend...');
+        const response = await mailerSend.email.send(emailParams);
+        console.log('[API_HIT] MailerSend API call successful.');
 
         console.log('[API_HIT] Email successfully queued to MailerSend. Responding to Convex action.');
-        res.status(200).json({ message: 'Email successfully queued.', mailerSendResponse: response.body });
-    } catch (error) { 
+        res.status(200).json({ message: 'Email successfully queued.', mailerSendResponse: response.data });
+    } catch (error) {
         console.error('[API_HIT] Error sending email via MailerSend:', error);
         let errorMessage = 'Network or internal server error.';
         let errorDetails = error.message;
 
-        // Check if error has a 'response' property (common for API errors)
-        if (error.response && error.response.body) {
-            // MailerSend specific API error details
-            errorMessage = error.response.body.message || errorMessage;
-            errorDetails = error.response.body.errors || error.response.body;
-            console.error('[API_HIT] MailerSend API Error Response Data:', error.response.body);
+        if (error.response && error.response.data) {
+            errorMessage = error.response.data.message || errorMessage;
+            errorDetails = error.response.data.errors || error.response.data;
+            console.error('[API_HIT] MailerSend API Error Response Data:', error.response.data);
         } else if (error.message) {
             errorMessage = error.message;
         }
@@ -213,17 +103,13 @@ app.post('/send-confirmation-email', async (req, res) => {
     }
 });
 
-// --- Basic GET route for health checks ---
 app.get('/', (req, res) => {
-    console.log('[API_HIT] Received GET request to /');
     res.send('E-Waste App Email Service is running!');
 });
-console.log('[SERVER_START] GET / route defined.');
+console.log('[SERVER_START] GET / route defined.'); // New log
 
-// --- Start the Express server ---
-// Use process.env.PORT for Render deployments, fallback to local port
 app.listen(process.env.PORT || port, () => {
-    console.log(`[SERVER_START] E-Waste App Email Service listening on port ${process.env.PORT || port}`);
+    console.log(`[SERVER_START] E-Waste App Email Service listening at http://localhost:${process.env.PORT || port}`);
     console.log('[SERVER_START] Make sure your Convex BACKEND_SERVER_URL points to the public URL of this deployed service.');
-    console.log('[SERVER_START] Server is fully started and routes are registered.');
+    console.log('[SERVER_START] Server is fully started and routes are registered.'); // New log
 });
