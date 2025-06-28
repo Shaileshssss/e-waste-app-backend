@@ -5,8 +5,8 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 
 // --- CRITICAL FIX HERE: Correct MailerSend v2 imports ---
-// IMPORTANT: This line MUST use 'Email' and NOT 'EmailParams'
-const { MailerSend, Email, Recipient, Sender } = require('mailersend'); 
+// IMPORTANT: This line MUST use 'EmailParams' and NOT 'Email'
+const { MailerSend, EmailParams, Recipient, Sender } = require('mailersend'); 
 
 // --- NEW UNIQUE LOG FOR VERIFICATION ---
 console.log('[SERVER_VERSION_CHECK] Running server.js v2025.06.28.1 - FINAL FIX ATTEMPT.'); 
@@ -177,8 +177,8 @@ app.post('/send-confirmation-email', async (req, res) => {
     const sender = new Sender(SENDER_EMAIL, "E-Waste App Notifications"); // Use configured sender email
     const recipients = [new Recipient(toEmail, toName)]; // Ensure toName is always used for Recipient
 
-    // CRITICAL: This MUST be 'new Email()' and NOT 'new EmailParams()'
-    const emailParams = new Email() 
+    // CRITICAL: This MUST be 'new EmailParams()' and NOT 'new Email()'
+    const emailParams = new EmailParams() 
         .setFrom(sender)
         .setTo(recipients)
         .setReplyTo(sender)
